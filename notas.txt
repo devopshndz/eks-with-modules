@@ -1,0 +1,64 @@
+Users y roles.
+Una vez desplegado el cluster de k8s y la vpc junto a las politicas y roles de iam se procede a configurar el o los usuarios a asignar dichos roles.
+
+debemos pasar el contexto del cluster para poder ingrasar a el.
+
+$ aws eks update-kubeconfig --name my-eks-beto2 --region us-east-1
+$ kubectl get nodes
+$ aws configure --profile user-prueba
+$ aws sts get-caller-identity --profile user-prueba
+$ nano ~/.aws/config --> se pega lo siguiente 
+  [profile eks-admin]
+  role_arn = arn:aws:iam::053525804139:role/eks-admin
+  source_profile = user-prueba
+  
+  ojo que el role_arn debe coincidir con el rol creado eks-admin y el usuario debe coincidi con el user creado user-prueba.
+
+$ aws sts get-caller-identity --profile eks-admin --> todo ok
+
+en terminal:
+$ aws eks update-kubeconfig \
+  --name my-eks-beto2 \
+  --region us-east-1 \
+  --profile eks-admin
+
+$ kubectl auth can-i "*" "*"
+>>> yes
+
+$ kubectl get pods -n kube-system --> obtener los nodoos
+
+Cuando ya se tenga el deployment de nginx listo, podemos probarlo, primero abriendo una terminal por separado para ver los logs:
+$ kubectl logs -f \
+  -n kube-system \
+  -l app=cluster-autoscaler
+
+aplicamos el deployment de nginx:
+$ kubectl apply -f k8s/nginx.yaml
+en unos minutos podriamos ver mas nodos e ingresar a ellos:
+$ watch -n 1 -t kubectl get nodes
+
+checkeamos si el controlador de lb esta funcionando:
+$ kubectl get pods -n kube-system
+
+ver logs:
+kubectl logs -f -n kube-system \
+  -l app.kubernetes.io/name=aws-load-balancer-controller
+
+creamos el deploy de echoserver.yaml para probarlo
+kubectl apply -f k8s/echoserver.yaml
+
+kubectl get ingress
+copiamos el dominio que nos aparece (si aparece el balanceador es mejor crear un dominio cname) y hacemos un cualquier
+curl http://echo.devopsbyexample.io
+
+
+tenemos acceso!!!!
+En teoria, esto se puede replicar con cualquier usuario que tengamos, se debe agregar primero el contexto del cluster, luego crear el perfil del usuario, no usar el default.
+configurado el perfil con aws configure, se coloca en aws/config el rol de eks admin y se le añade al usuario. se le hace un get-caller-identity con el eks-admin y debe estar ok
+en terminal se pasa la actualizacion del kubeconfig con el nombre del cluster, la region y el rol, y al validar por ultimo con kubectl auth can-i "*" "*" nos debe dar un yes.
+Esto nos demuestra que ya podemos ingresar al cluster como admins con nuestro usuario.
+OJO! para que esto se pueda hacer, se debe agregar el usuario en el modulo de iam eks_admins_iam_group (linea 73) de lo contrario no sera autorizado.
+
+Hacer la prueba con cualquier otro usuario. debe tener instalado kubectl
+
+
